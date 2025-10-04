@@ -1,0 +1,434 @@
+<div class="content-area">
+  <!-- Video Chat Overlay -->
+  <div *ngIf="showVideoChat" class="video-chat-overlay">
+    <app-video-chat
+      [channelId]="currentChannel?._id || currentChannel?.id || ''"
+      [currentUser]="currentUser"
+      (callEnded)="onCallEnded()"
+    ></app-video-chat>
+  </div>
+
+  <!-- Image Modal -->
+  <div *ngIf="selectedImageMessage" class="image-modal" (click)="closeImageModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <button class="close-btn" (click)="closeImageModal()">
+        <i class="fas fa-times"></i>
+      </button>
+      <img [src]="getImageMessageUrl(selectedImageMessage)" alt="Full size image">
+      <div class="image-info">
+        <span class="image-filename">{{ selectedImageMessage.imageFileName }}</span>
+        <span class="image-size">{{ formatFileSize(selectedImageMessage.imageSize) }}</span>
+        <span class="image-dimensions">{{ selectedImageMessage.imageDimensions?.width }} × {{ selectedImageMessage.imageDimensions?.height }}</span>
+        <span class="image-sender">Shared by {{ selectedImageMessage.username }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Header -->
+  <div class="chat-header">
+    <!-- Channel Info -->
+    <div class="channel-info" *ngIf="!isDirectMessageMode">
+      <i class="fas fa-hashtag"></i>
+      <span>{{ currentChannel?.name || 'Select a channel to start chatting' }}</span>
+      <span *ngIf="currentGroup" class="group-name">in {{ currentGroup.name }}</span>
+    </div>
+    
+    <!-- Direct Message Info -->
+    <div class="direct-message-info" *ngIf="isDirectMessageMode && directMessageUser">
+      <div class="dm-header">
+        <button (click)="onExitDirectMessage()" class="btn btn-sm btn-outline back-btn">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <div class="dm-user">
+          <div class="user-avatar-container">
+            <img 
+              *ngIf="directMessageUser.profileImage"
+              [src]="directMessageUser.profileImage" 
+              class="user-avatar"
+              alt="{{ directMessageUser.username }}"
+              (error)="directMessageUser.profileImage = ''">
+            <div 
+              *ngIf="!directMessageUser.profileImage" 
+              class="user-avatar default-avatar">
+              {{ directMessageUser.username?.charAt(0)?.toUpperCase() }}
+            </div>
+          </div>
+          <div class="user-details">
+            <span class="username">{{ directMessageUser.username }}</span>
+            <span class="user-status" [class.online]="directMessageUser.isOnline">
+              {{ directMessageUser.isOnline ? 'Online' : 'Offline' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Call Options -->
+      <div class="online-users-dropdown">
+        <button 
+          class="btn btn-outline online-btn"
+          (click)="toggleCallOptions()"
+          title="Online Users & Call Options"
+          [class.active]="showCallOptions">
+          <i class="fas fa-users"></i>
+          <span class="online-count">{{ getOnlineUsersCount() }} online</span>
+          <i class="fas fa-chevron-down"></i>
+        </button>
+        
+        <!-- Always show dropdown when active -->
+        <div class="dropdown-content" *ngIf="showCallOptions">
+          
+          <!-- Online Users List -->
+          <div class="online-users-list" *ngIf="!selectedUser">
+            <div class="online-users-header">
+              <h4>Online Users ({{ getAvailableUsers().length }})</h4>
+              <button class="close-btn" (click)="hideCallOptions()">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="users-list">
+              <!-- Sample users for testing -->
+              <div 
+                *ngFor="let user of testUsers"
+                class="user-item"
+                (click)="selectUserForCall(user)">
+                <div class="user-info">
+                  <div class="user-avatar-container">
+                    <img 
+                      *ngIf="user.profileImage"
+                      [src]="user.profileImage" 
+                      class="user-avatar"
+                      alt="{{ user.username }}"
+                      (error)="user.profileImage = ''">
+                    <div 
+                      *ngIf="!user.profileImage" 
+                      class="user-avatar default-avatar">
+                      {{ user.username?.charAt(0)?.toUpperCase() }}
+                    </div>
+                  </div>
+                  <div class="user-details">
+                    <span class="username">{{ user.username }}</span>
+                    <span class="user-status online">Online</span>
+                  </div>
+                </div>
+                <div class="call-actions">
+                  <i class="fas fa-phone call-icon" title="Start Call"></i>
+                </div>
+              </div>
+              
+              <div *ngIf="getAvailableUsers().length === 0" class="no-users">
+                <i class="fas fa-users-slash"></i>
+                <p>No users available for calls</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Call Options for Selected User -->
+          <div class="call-options" *ngIf="selectedUser">
+            <div class="call-options-header">
+              <h4>Call {{ selectedUser.username }}</h4>
+              <button class="close-btn" (click)="deselectUser()">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="call-buttons">
+              <button 
+                class="btn btn-video-call"
+                (click)="onStartVideoCall(selectedUser)"
+                title="Video Call">
+                <i class="fas fa-video"></i>
+                Video Call
+              </button>
+              <button 
+                class="btn btn-audio-call"
+                (click)="onStartAudioCall(selectedUser)"
+                title="Audio Call">
+                <i class="fas fa-phone"></i>
+                Audio Call
+              </button>
+              <button 
+                class="btn btn-back"
+                (click)="deselectUser()"
+                title="Back to Users">
+                <i class="fas fa-arrow-left"></i>
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Image Upload -->
+      <div class="profile-image-upload">
+        <input 
+          type="file" 
+          #profileImageInput
+          (change)="uploadProfileImage($event)"
+          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+          style="display: none"
+        >
+        <button 
+          class="btn btn-outline profile-btn"
+          (click)="profileImageInput.click()"
+          title="Update Profile Image">
+          <i class="fas fa-camera"></i>
+          <span>P</span>
+        </button>
+      </div>
+
+      <!-- Leave button (only show for channels) -->
+      <button 
+        *ngIf="!isDirectMessageMode"
+        (click)="onLeaveChannel()" 
+        class="btn btn-outline leave-btn"
+        title="Leave Channel">
+        <i class="fas fa-sign-out-alt"></i>
+        <span>Leave</span>
+      </button>
+
+      <!-- Test buttons -->
+      <div class="test-buttons">
+        <button 
+          (click)="addTestUsers()" 
+          class="btn btn-test"
+          title="Add Test Users">
+          <i class="fas fa-user-plus"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Messages -->
+  <div 
+    #messagesContainer
+    class="chat-messages"
+    [class.loading]="isLoading"
+    [class.direct-messages]="isDirectMessageMode">
+    
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="loading-state">
+      <i class="fas fa-spinner fa-spin"></i>
+      <span>Loading messages...</span>
+    </div>
+
+    <!-- Empty State for Direct Messages -->
+    <div *ngIf="!isLoading && isDirectMessageMode && directMessages.length === 0" class="empty-state">
+      <i class="fas fa-comments"></i>
+      <h3>No messages yet</h3>
+      <p>Start a conversation with {{ directMessageUser?.username }}</p>
+      <div class="empty-state-actions">
+        <button (click)="sendTestMessage('Hello! 👋')" class="btn btn-primary">
+          <i class="fas fa-bolt"></i>
+          Send Test Message
+        </button>
+      </div>
+    </div>
+
+    <!-- Empty State for Channels -->
+    <div *ngIf="!isLoading && !isDirectMessageMode && messages.length === 0 && currentChannel" class="empty-state">
+      <i class="fas fa-comment-slash"></i>
+      <h3>No messages yet</h3>
+      <p>Start a conversation by sending a message or image</p>
+      <div class="empty-state-actions">
+        <button (click)="sendTestMessage('Hello everyone! 👋')" class="btn btn-primary">
+          <i class="fas fa-bolt"></i>
+          Send Test Message
+        </button>
+        <button (click)="sendTestImage()" class="btn btn-secondary">
+          <i class="fas fa-image"></i>
+          Send Test Image
+        </button>
+      </div>
+    </div>
+
+    <!-- No Channel Selected -->
+    <div *ngIf="!isLoading && !isDirectMessageMode && !currentChannel" class="empty-state">
+      <i class="fas fa-hashtag"></i>
+      <h3>No channel selected</h3>
+      <p>Select a channel from the sidebar or start a direct message</p>
+    </div>
+
+    <!-- Messages List - WhatsApp Style -->
+    <div *ngFor="let message of getDisplayMessages(); let i = index" 
+         class="message-wrapper"
+         [class.current-user]="isCurrentUserMessage(message)"
+         [class.other-user]="!isCurrentUserMessage(message)">
+      
+      <!-- Date Header -->
+      <div *ngIf="shouldShowDateHeader(i)" class="date-header">
+        {{ formatMessageDate(message.timestamp) }}
+      </div>
+
+      <!-- Message Bubble Container -->
+      <div class="message-bubble-container" [class.current-user]="isCurrentUserMessage(message)">
+        
+        <!-- Other User's Avatar (left side) -->
+        <div *ngIf="!isCurrentUserMessage(message)" class="user-avatar-left">
+          <div class="avatar-container">
+            <img 
+              *ngIf="hasProfileImage(message)"
+              [src]="getProfileImageUrl(message)" 
+              class="user-avatar"
+              alt="{{ message.username }}"
+              (error)="message.profileImage = ''">
+            <div 
+              *ngIf="!hasProfileImage(message)" 
+              class="user-avatar default-avatar">
+              {{ message.username?.charAt(0)?.toUpperCase() }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Message Content -->
+        <div class="message-content-wrapper">
+          
+          <!-- Sender Name (for group chats, only show for other users) -->
+          <div *ngIf="!isDirectMessageMode && !isCurrentUserMessage(message) && !isConsecutiveMessage(i)" 
+               class="sender-name">
+            {{ message.username }}
+            <span *ngIf="message.userRoles?.includes('super_admin')" class="user-role admin">Admin</span>
+            <span *ngIf="message.userRoles?.includes('group_admin')" class="user-role moderator">Mod</span>
+          </div>
+
+          <!-- Message Bubble -->
+          <div class="message-bubble" [class.current-user]="isCurrentUserMessage(message)">
+            
+            <!-- Text Message -->
+            <div *ngIf="!isImageMessage(message)" class="text-message">
+              {{ getMessageText(message) }}
+            </div>
+
+            <!-- Image Message -->
+            <div *ngIf="isImageMessage(message)" class="image-message">
+              <img 
+                [src]="getImageMessageUrl(message)" 
+                alt="Shared image" 
+                class="message-image"
+                (click)="openImageModal(message)"
+                loading="lazy">
+              <!-- Image caption -->
+              <div *ngIf="message.content && message.content !== 'Shared an image'" class="image-caption">
+                {{ message.content }}
+              </div>
+            </div>
+
+            <!-- Message Time -->
+            <div class="message-time">
+              {{ formatMessageTime(message.timestamp) }}
+              <span *ngIf="isImageMessage(message)" class="image-indicator">
+                <i class="fas fa-image"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Current User's Avatar (right side) -->
+        <div *ngIf="isCurrentUserMessage(message)" class="user-avatar-right">
+          <div class="avatar-container">
+            <img 
+              *ngIf="currentUser?.profileImage"
+              [src]="currentUser.profileImage" 
+              class="user-avatar"
+              alt="{{ currentUser?.username }}"
+              (error)="currentUser.profileImage = ''">
+            <div 
+              *ngIf="!currentUser?.profileImage" 
+              class="user-avatar default-avatar">
+              {{ currentUser?.username?.charAt(0)?.toUpperCase() || 'U' }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Typing Indicator -->
+    <div *ngIf="typingUsers.size > 0" class="typing-indicator">
+      <div class="typing-dots">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <span class="typing-text">{{ getTypingText() }}</span>
+    </div>
+
+    <!-- Upload Progress -->
+    <div *ngIf="isUploading" class="global-upload-progress">
+      <div class="upload-status">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <span>Uploading image... {{ uploadProgress }}%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" [style.width.%]="uploadProgress"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Message Input -->
+  <div class="message-input-container" *ngIf="currentChannel || isDirectMessageMode">
+    <!-- Hidden file input for message images -->
+    <input 
+      type="file" 
+      #fileInput
+      (change)="onFileSelected($event)"
+      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+      style="display: none"
+    >
+    
+    <div class="input-wrapper">
+      <!-- Image upload button -->
+      <button 
+        type="button"
+        (click)="fileInput.click()"
+        class="btn btn-image-upload"
+        [disabled]="isUploading"
+        title="Upload image">
+        <i class="fas fa-image"></i>
+      </button>
+
+      <!-- Text input -->
+      <input 
+        type="text" 
+        [(ngModel)]="newMessage" 
+        (input)="onInputChange()"
+        (keyup.enter)="onSendMessage()"
+        [placeholder]="isDirectMessageMode ? 'Message ' + (directMessageUser?.username || '') : 'Type your message or upload an image...'"
+        [disabled]="(!currentChannel && !isDirectMessageMode) || isUploading"
+        class="message-text-input">
+
+      <!-- Send button -->
+      <button 
+        (click)="onSendMessage()" 
+        class="btn btn-primary send-btn" 
+        [disabled]="(!currentChannel && !isDirectMessageMode) || (!newMessage.trim() && !isUploading)"
+        [class.loading]="isUploading"
+        title="Send message">
+        <i class="fas" [class.fa-paper-plane]="!isUploading" [class.fa-spinner]="isUploading" [class.fa-spin]="isUploading"></i>
+      </button>
+    </div>
+
+    <!-- Selected file preview -->
+    <div *ngIf="selectedFile && !isUploading" class="file-preview">
+      <div class="preview-content">
+        <i class="fas fa-image"></i>
+        <span class="file-name">{{ selectedFile.name }}</span>
+        <span class="file-size">{{ formatFileSize(selectedFile.size) }}</span>
+        <button class="btn-remove" (click)="selectedFile = null" title="Remove file">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Message Actions -->
+    <div class="message-actions">
+      <!-- Test message buttons -->
+      <button 
+        (click)="sendTestMessage('Hello!')" 
+        class="btn btn-test"
+        [disabled]="isUploading"
+        title="Send Test Message">
+        <i class="fas fa-bolt"></i>
+      </button>
+    </div>
+  </div>
+</div>
