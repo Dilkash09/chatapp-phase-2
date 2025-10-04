@@ -1,0 +1,123 @@
+<div class="video-chat-container">
+  <!-- Peer ID Display -->
+  <div class="peer-info">
+    <h4>Your Peer ID: {{ peerId }}</h4>
+    <button (click)="copyPeerId()" class="btn btn-sm btn-outline-secondary">
+      Copy ID
+    </button>
+  </div>
+
+  <!-- Connection Status -->
+  <div class="connection-status" [class.connected]="isConnected">
+    Status: {{ isConnected ? 'Connected' : 'Disconnected' }}
+  </div>
+
+  <!-- Call Controls -->
+  <div class="call-controls" *ngIf="!isInCall && !isCallIncoming">
+    <div class="input-group mb-3">
+      <input 
+        type="text" 
+        [(ngModel)]="remotePeerId" 
+        placeholder="Enter peer ID to call"
+        class="form-control"
+      >
+    </div>
+    <div class="btn-group">
+      <button 
+        (click)="startVideoCall()" 
+        [disabled]="isCalling || !remotePeerId.trim()"
+        class="btn btn-primary"
+      >
+        <i class="fas fa-video"></i> Video Call
+      </button>
+      <button 
+        (click)="startAudioCall()" 
+        [disabled]="isCalling || !remotePeerId.trim()"
+        class="btn btn-secondary"
+      >
+        <i class="fas fa-phone"></i> Audio Call
+      </button>
+    </div>
+  </div>
+
+  <!-- Incoming Call Alert -->
+  <div *ngIf="isCallIncoming" class="incoming-call-alert alert alert-info">
+    <h5>Incoming {{ callType }} Call</h5>
+    <p>From: {{ incomingCall?.peer }}</p>
+    <div class="btn-group">
+      <button (click)="answerCall(true)" class="btn btn-success">
+        <i class="fas fa-phone"></i> Accept
+      </button>
+      <button (click)="answerCall(false)" class="btn btn-danger">
+        <i class="fas fa-phone-slash"></i> Reject
+      </button>
+    </div>
+  </div>
+
+  <!-- Video Call Interface -->
+  <div *ngIf="isInCall" class="video-interface">
+    <div class="video-container">
+      <!-- Remote Video -->
+      <div class="remote-video" *ngIf="remoteStream && callType === 'video'">
+        <video 
+          #remoteVideo 
+          [srcObject]="remoteStream" 
+          autoplay 
+          playsinline
+          class="video-element"
+        ></video>
+        <div class="video-label">Remote</div>
+      </div>
+
+      <!-- Local Video -->
+      <div class="local-video" *ngIf="localStream && callType === 'video'">
+        <video 
+          #localVideo 
+          [srcObject]="localStream" 
+          autoplay 
+          playsinline
+          muted
+          class="video-element"
+        ></video>
+        <div class="video-label">You</div>
+      </div>
+
+      <!-- Audio Only Call -->
+      <div *ngIf="callType === 'audio'" class="audio-call-interface">
+        <div class="audio-icon">
+          <i class="fas fa-phone fa-4x"></i>
+        </div>
+        <p>Audio call in progress...</p>
+      </div>
+    </div>
+
+    <!-- Call Controls -->
+    <div class="call-controls-bar">
+      <button 
+        (click)="toggleVideo()" 
+        [class.btn-warning]="!isVideoEnabled"
+        class="btn"
+        *ngIf="callType === 'video'"
+      >
+        <i class="fas" [class.fa-video]="isVideoEnabled" [class.fa-video-slash]="!isVideoEnabled"></i>
+      </button>
+      
+      <button 
+        (click)="toggleAudio()" 
+        [class.btn-warning]="!isAudioEnabled"
+        class="btn"
+      >
+        <i class="fas" [class.fa-microphone]="isAudioEnabled" [class.fa-microphone-slash]="!isAudioEnabled"></i>
+      </button>
+      
+      <button (click)="endCall()" class="btn btn-danger">
+        <i class="fas fa-phone-slash"></i> End Call
+      </button>
+    </div>
+  </div>
+
+  <!-- Call Status -->
+  <div *ngIf="isCalling" class="calling-status alert alert-info">
+    <i class="fas fa-spinner fa-spin"></i> Calling {{ remotePeerId }}...
+  </div>
+</div>
