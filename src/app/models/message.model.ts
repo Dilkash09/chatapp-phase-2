@@ -1,0 +1,469 @@
+export interface Message {
+  // MongoDB properties
+  _id?: string;
+  // Legacy properties
+  id?: string;
+  
+  // Content properties
+  text?: string; // Legacy
+  content?: string; // New
+  
+  // Relationship properties
+  userId?: string; // Legacy
+  senderId?: string; // New
+  channelId: string;
+  
+  // Metadata
+  messageType?: 'text' | 'image';
+  imageUrl?: string;
+  timestamp: Date | string;
+  updatedAt?: Date | string; // ADDED: For tracking message edits
+  
+  // User info (populated)
+  username?: string;
+  userRoles?: string[];
+  profileImage?: string;
+
+  // Image-specific properties
+  imageFileName?: string;
+  imageSize?: number;
+  imageDimensions?: { width: number; height: number };
+}
+
+export class MessageModel implements Message {
+  
+  constructor(
+    // MongoDB ID
+    public _id?: string,
+    // Legacy ID
+    public id?: string,
+    
+    // Content - support both text (legacy) and content (new)
+    public text?: string,
+    public content?: string,
+    
+    // Relationships - support both userId (legacy) and senderId (new)
+    public userId?: string,
+    public senderId?: string,
+    
+    // Channel
+    public channelId: string = '',
+    
+    // Metadata
+    public messageType: 'text' | 'image' = 'text',
+    public imageUrl?: string,
+    public timestamp: Date | string = new Date(),
+    public updatedAt?: Date | string, // ADDED: To track when a message was last updated
+    
+    // User info
+    public username?: string,
+    public userRoles?: string[],
+    public profileImage?: string,
+
+    // Image-specific properties
+    public imageFileName?: string,
+    public imageSize?: number,
+    public imageDimensions?: { width: number; height: number }
+  ) {}
+
+  // Get the primary ID (prefer MongoDB _id, fallback to legacy id)
+  get primaryId(): string {
+    return this._id || this.id || '';
+  }
+
+  // Get the sender ID (prefer senderId, fallback to userId)
+  get primarySenderId(): string {
+    return this.senderId || this.userId || '';
+  }
+
+  // Get the message content (prefer content, fallback to text)
+  get primaryContent(): string {
+    return this.content || this.text || '';
+  }
+
+  // Check if message is from current user
+  isFromUser(userId: string): boolean {
+    return this.primarySenderId === userId;
+  }
+
+  // Check if message is an image
+  isImage(): boolean {
+    return this.messageType === 'image' && !!this.imageUrl;
+  }
+
+  // Check if message has profile image
+  hasProfileImage(): boolean {
+    return !!this.profileImage;
+  }
+
+  // Get display text for image messages
+  getDisplayContent(): string {
+    if (this.isImage()) {
+      return '📷 Shared an image';
+    }
+    return this.primaryContent;
+  }
+
+  // Convert to JSON for API calls
+  toJSON(): any {
+    return {
+      // Prefer MongoDB _id for new data
+      ...(this._id && { _id: this._id }),
+      ...(this.id && { id: this.id }),
+      
+      // Use content for new messages, text for legacy
+      ...(this.content && { content: this.content }),
+      ...(this.text && !this.content && { text: this.text }),
+      
+      // Use senderId for new messages, userId for legacy
+      ...(this.senderId && { senderId: this.senderId }),
+      ...(this.userId && !this.senderId && { userId: this.userId }),
+      
+      channelId: this.channelId,
+      messageType: this.messageType,
+      ...(this.imageUrl && { imageUrl: this.imageUrl }),
+      timestamp: this.timestamp,
+      ...(this.updatedAt && { updatedAt: this.updatedAt }), // ADDED: Include updatedAt
+      ...(this.username && { username: this.username }),
+      ...(this.userRoles && { userRoles: this.userRoles }),
+      ...(this.profileImage && { profileImage: this.profileImage }),
+      ...(this.imageFileName && { imageFileName: this.imageFileName }),
+      ...(this.imageSize && { imageSize: this.imageSize }),
+      ...(this.imageDimensions && { imageDimensions: this.imageDimensions })
+    };
+  }
+
+  // Create from JSON with support for both MongoDB and legacy data
+  static fromJSON(json: any): MessageModel {
+    return new MessageModel(
+      json._id, // MongoDB ID
+      json.id, // Legacy ID
+      json.text, // Legacy content
+      json.content, // New content
+      json.userId, // Legacy sender
+      json.senderId, // New sender
+      json.channelId,
+      json.messageType || 'text',
+      json.imageUrl,
+      json.timestamp ? new Date(json.timestamp) : new Date(),
+      json.updatedAt ? new Date(json.updatedAt) : undefined, // ADDED: Parse updatedAt
+      json.username,
+      json.userRoles,
+      json.profileImage,
+      json.imageFileName,
+      json.imageSize,
+      json.imageDimensions
+    );
+  }
+
+  // Create a new text message for sending
+  static createTextMessage(
+    content: string,
+    senderId: string,
+    channelId: string,
+    username?: string,
+    profileImage?: string,
+    userRoles?: string[]
+  ): MessageModel {
+    return new MessageModel(
+      undefined, // _id will be generated by MongoDB
+      undefined, // id will be generated if needed
+      undefined, // Use content instead of text
+      content,
+      undefined, // Use senderId instead of userId
+      senderId,
+      channelId,
+      'text',
+      undefined, // No image URL for text messages
+      new Date(),
+      undefined, // No initial updatedAt
+      username,
+      userRoles,
+      profileImage
+    );
+  }
+
+  // Create a new image message for sending
+  static createImageMessage(
+    imageUrl: string,
+    fileName: string,
+    fileSize: number = 0,
+    dimensions: { width: number; height: number } = { width: 0, height: 0 },
+    senderId: string,
+    channelId: string,
+    username: string = 'Unknown User', // Change to required string with default
+    profileImage: string = '', // Change to required string with default
+    userRoles: string[] = ['user'] // This should match the expected type
+  ): MessageModel {
+    return new MessageModel(
+      undefined, // _id
+      undefined, // id
+      undefined, // text
+      `Shared an image: ${fileName}`, // content
+      undefined, // userId
+      senderId, // senderId
+      channelId, // channelId
+      'image', // messageType
+      imageUrl, // imageUrl
+      new Date(), // timestamp
+      undefined, // No initial updatedAt
+      username, // username
+      userRoles, // userRoles - this should be string[]
+      profileImage, // profileImage
+      fileName, // imageFileName
+      fileSize, // imageSize
+      dimensions // imageDimensions
+    );
+  }
+
+  // Create from socket data (real-time messages)
+  static fromSocketData(data: any): MessageModel {
+    return MessageModel.fromJSON({
+      _id: data._id,
+      id: data.id,
+      content: data.content,
+      text: data.text,
+      senderId: data.senderId,
+      userId: data.userId,
+      channelId: data.channelId,
+      messageType: data.messageType,
+      imageUrl: data.imageUrl,
+      timestamp: data.timestamp,
+      updatedAt: data.updatedAt, // ADDED: Include in socket data
+      username: data.username,
+      userRoles: data.userRoles,
+      profileImage: data.profileImage,
+      imageFileName: data.imageFileName,
+      imageSize: data.imageSize,
+      imageDimensions: data.imageDimensions
+    });
+  }
+
+  // Create a test message for debugging
+  static createTestMessage(
+    content: string,
+    username: string = 'Test User',
+    isImage: boolean = false
+  ): MessageModel {
+    return new MessageModel(
+      `test_${Date.now()}`,
+      `test_${Date.now()}`,
+      undefined,
+      content,
+      undefined,
+      'test-user-id',
+      'test-channel',
+      isImage ? 'image' : 'text',
+      isImage ? '/assets/test-image.jpg' : undefined,
+      new Date(),
+      undefined, // No initial updatedAt
+      username,
+      ['user'],
+      '/assets/default-avatar.png',
+      isImage ? 'test-image.jpg' : undefined,
+      isImage ? 1024000 : undefined,
+      isImage ? { width: 800, height: 600 } : undefined
+    );
+  }
+
+  // Check if message can be edited (within time limit, not an image, etc.)
+  canEdit(maxEditTime: number = 300000): boolean { // 5 minutes default
+    if (this.isImage()) {
+      return false; // Image messages cannot be edited
+    }
+    
+    // Check if the message has already been updated (meaning it's past the initial window)
+    // NOTE: This logic is common, but usually, edit checks are done on the *original* timestamp.
+    // We will stick to the original timestamp for the edit check:
+    const messageTime = new Date(this.timestamp).getTime();
+    const currentTime = Date.now();
+    return (currentTime - messageTime) <= maxEditTime;
+  }
+
+  // Check if message can be deleted (similar logic to edit)
+  canDelete(maxDeleteTime: number = 300000): boolean {
+    const messageTime = new Date(this.timestamp).getTime();
+    const currentTime = Date.now();
+    return (currentTime - messageTime) <= maxDeleteTime;
+  }
+
+  // Update message content (for editing)
+  updateContent(newContent: string): void {
+    this.content = newContent;
+    this.updatedAt = new Date(); // FIXED: updatedAt now exists on the model
+  }
+
+  // Get file size in human readable format
+  getFormattedFileSize(): string {
+    if (!this.imageSize) return '';
+    
+    const bytes = this.imageSize;
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // Get image dimensions as string
+  getFormattedDimensions(): string {
+    if (!this.imageDimensions) return '';
+    return `${this.imageDimensions.width} × ${this.imageDimensions.height}`;
+  }
+
+  // Check if user has specific role
+  userHasRole(role: string): boolean {
+    return this.userRoles?.includes(role) || false;
+  }
+
+  // Check if user is admin
+  get isAdmin(): boolean {
+    return this.userHasRole('super_admin') || this.userHasRole('group_admin');
+  }
+
+  // Get user role display
+  getUserRoleDisplay(): string {
+    if (this.userHasRole('super_admin')) return 'Admin';
+    if (this.userHasRole('group_admin')) return 'Moderator';
+    return 'Member';
+  }
+
+  // Get initials for avatar fallback
+  getInitials(): string {
+    if (!this.username) return '?';
+    return this.username
+      .split(' ')
+      .map(part => part.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  }
+
+  // Get profile image URL with fallback
+  getProfileImageUrl(baseUrl: string = ''): string {
+    if (!this.profileImage) return '';
+    
+    if (this.profileImage.startsWith('http')) {
+      return this.profileImage;
+    }
+    
+    // Remove leading slash if present and add base URL
+    const cleanPath = this.profileImage.startsWith('/') 
+      ? this.profileImage.substring(1) 
+      : this.profileImage;
+    
+    return baseUrl ? `${baseUrl}/${cleanPath}` : `/${cleanPath}`;
+  }
+
+  // Get image message URL with fallback
+  getImageUrl(baseUrl: string = ''): string {
+    if (!this.imageUrl) return '';
+    
+    if (this.imageUrl.startsWith('http')) {
+      return this.imageUrl;
+    }
+    
+    // Remove leading slash if present and add base URL
+    const cleanPath = this.imageUrl.startsWith('/') 
+      ? this.imageUrl.substring(1) 
+      : this.imageUrl;
+    
+    return baseUrl ? `${baseUrl}/${cleanPath}` : `/${cleanPath}`;
+  }
+
+  // Validation methods
+  isValid(): boolean {
+    if (!this.primaryContent && !this.isImage()) return false;
+    if (!this.primarySenderId) return false;
+    if (!this.channelId) return false;
+    if (this.isImage() && !this.imageUrl) return false;
+    return true;
+  }
+
+  // Clone message
+  clone(): MessageModel {
+    return MessageModel.fromJSON(this.toJSON());
+  }
+
+  // Timestamp for display
+  get displayTimestamp(): string {
+    const date = new Date(this.timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Date for grouping
+  get displayDate(): string {
+    const date = new Date(this.timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString();
+    }
+  }
+
+  // For debugging
+  toString(): string {
+    return `Message[${this.primaryId}]: ${this.primaryContent} (${this.messageType})`;
+  }
+}
+
+// Additional utility functions
+export class MessageUtils {
+  // Group messages by date
+  static groupMessagesByDate(messages: MessageModel[]): { [key: string]: MessageModel[] } {
+    const groups: { [key: string]: MessageModel[] } = {};
+    
+    messages.forEach(message => {
+      const dateKey = message.displayDate;
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(message);
+    });
+    
+    return groups;
+  }
+
+  // Check if two messages are consecutive (same sender, within time limit)
+  static areConsecutive(
+    current: MessageModel, 
+    previous: MessageModel, 
+    timeLimit: number = 300000 // 5 minutes
+  ): boolean {
+    if (current.primarySenderId !== previous.primarySenderId) return false;
+    
+    const currentTime = new Date(current.timestamp).getTime();
+    const previousTime = new Date(previous.timestamp).getTime();
+    
+    return (currentTime - previousTime) <= timeLimit;
+  }
+
+  // Filter messages by type
+  static filterByType(messages: MessageModel[], type: 'text' | 'image'): MessageModel[] {
+    return messages.filter(message => message.messageType === type);
+  }
+
+  // Find messages from specific user
+  static fromUser(messages: MessageModel[], userId: string): MessageModel[] {
+    return messages.filter(message => message.primarySenderId === userId);
+  }
+
+  // Get unique senders from messages
+  static getUniqueSenders(messages: MessageModel[]): string[] {
+    const senders = new Set<string>();
+    messages.forEach(message => {
+      if (message.primarySenderId) {
+        senders.add(message.primarySenderId);
+      }
+    });
+    return Array.from(senders);
+  }
+}

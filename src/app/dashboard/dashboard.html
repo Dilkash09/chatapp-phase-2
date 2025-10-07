@@ -1,0 +1,249 @@
+<!-- dashboard.html -->
+<div class="dashboard-container">
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+<!-- Add direct message header in the sidebar -->
+<div *ngIf="isDirectMessageMode && directMessageUser" class="direct-message-header">
+  <div class="dm-header-content">
+    <button (click)="exitDirectMessage()" class="btn btn-sm btn-outline back-btn">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+    <div class="dm-user-info">
+      <div class="dm-user-avatar">
+        <img 
+          *ngIf="directMessageUser.profileImage"
+          [src]="getProfileImageUrl(directMessageUser)" 
+          class="user-avatar"
+          alt="{{ directMessageUser.username }}"
+          (error)="directMessageUser.profileImage = ''">
+        <div 
+          *ngIf="!directMessageUser.profileImage" 
+          class="user-avatar default-avatar">
+          {{ getInitials(directMessageUser.username) }}
+        </div>
+      </div>
+      <div class="dm-user-details">
+        <span class="dm-username">{{ directMessageUser.username }}</span>
+        <span class="dm-status" [class.online]="directMessageUser.isOnline">
+          {{ directMessageUser.isOnline ? 'Online' : 'Offline' }}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+    <!-- User Info with Profile Picture -->
+    <div class="user-info">
+      <div class="user-avatar-container">
+        <!-- Profile Picture Upload -->
+        <div class="profile-picture-upload">
+          <input 
+            type="file" 
+            #profileInput
+            (change)="uploadProfilePicture($event)"
+            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+            style="display: none"
+          >
+          <div class="user-avatar-wrapper" (click)="profileInput.click()">
+            <img 
+              *ngIf="currentUser?.profileImage"
+              [src]="getProfileImageUrl(currentUser!)" 
+              class="user-avatar"
+              alt="{{ currentUser?.username }}"
+              (error)="currentUser!.profileImage = ''">
+            <div 
+              *ngIf="!currentUser?.profileImage" 
+              class="user-avatar default-avatar">
+              {{ getInitials(currentUser?.username || '') }}
+            </div>
+            <div class="avatar-overlay">
+              <i class="fas fa-camera"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload Progress -->
+        <div *ngIf="isUploadingProfile" class="upload-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width.%]="uploadProgress"></div>
+          </div>
+          <span>Uploading... {{uploadProgress}}%</span>
+        </div>
+      </div>
+
+      <div class="user-details">
+        <span class="username">{{ currentUser?.username }}</span>
+        <span class="user-email">{{ currentUser?.email }}</span>
+        <div class="user-roles">
+          <span *ngFor="let role of currentUser?.roles" 
+                class="role-tag"
+                [class.role-admin]="role === 'super_admin'"
+                [class.role-moderator]="role === 'group_admin'">
+            {{ role === 'super_admin' ? 'Admin' : role === 'group_admin' ? 'Moderator' : 'User' }}
+          </span>
+        </div>
+      </div>
+
+      <div class="user-actions">
+        <button (click)="logout()" class="btn btn-sm btn-outline">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+      </div>
+    </div>
+
+    <!-- Groups Section -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <h3>My Groups</h3>
+        <!-- Show join group button for regular users -->
+        <button 
+          *ngIf="!hasRole('super_admin') && !hasRole('group_admin')"
+          (click)="showAvailableGroups()"
+          class="btn btn-sm btn-primary">
+          <i class="fas fa-plus"></i> Join Group
+        </button>
+        
+        <!-- Show create group button for admins -->
+        <button 
+          *ngIf="hasRole('super_admin') || hasRole('group_admin')"
+          (click)="createNewGroup()"
+          class="btn btn-sm btn-primary">
+          <i class="fas fa-plus"></i> Create Group
+        </button>
+      </div>
+
+      <div class="groups-list">
+        <div 
+          *ngFor="let group of groups" 
+          class="group-item"
+          [class.active]="currentGroup?.primaryId === group.primaryId"
+          (click)="selectGroup(group)">
+          <i class="fas fa-layer-group"></i>
+          <span class="group-name">{{ group.name }}</span>
+          <span class="member-count">{{ group.members.length }}</span>
+        </div>
+        
+        <div *ngIf="groups.length === 0" class="empty-state">
+          <p>No groups yet</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Channels Section -->
+    <div *ngIf="currentGroup" class="sidebar-section">
+      <div class="section-header">
+        <h3># {{ currentGroup.name }} Channels</h3>
+        <!-- Show create channel button for group admins -->
+        <button 
+          *ngIf="(hasRole('group_admin') || hasRole('super_admin')) && currentGroup"
+          (click)="createNewChannel()"
+          class="btn btn-sm btn-primary">
+          <i class="fas fa-plus"></i> Create Channel
+        </button>
+      </div>
+
+      <div class="channels-list">
+        <div 
+          *ngFor="let channel of channels" 
+          class="channel-item"
+          [class.active]="currentChannel?.primaryId === channel.primaryId"
+          (click)="selectChannel(channel)">
+          <i class="fas fa-hashtag"></i>
+          <span class="channel-name">{{ channel.name }}</span>
+        </div>
+        
+        <div *ngIf="channels.length === 0" class="empty-state">
+          <p>No channels yet</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group Members Section -->
+    <div *ngIf="currentGroup" class="sidebar-section">
+      <div class="section-header">
+        <h3>
+          <i class="fas fa-users"></i>
+          Group Members
+          <span class="member-count-badge">{{ groupMembers.length }}</span>
+        </h3>
+        <button 
+          (click)="toggleMembersPanel()"
+          class="btn btn-sm btn-outline">
+          <i class="fas" [class.fa-chevron-down]="!showMembersPanel" [class.fa-chevron-up]="showMembersPanel"></i>
+        </button>
+      </div>
+
+      <div *ngIf="showMembersPanel" class="members-list">
+        <div 
+          *ngFor="let member of groupMembers" 
+          class="member-item"
+          [class.selected]="selectedMember?.primaryId === member.primaryId"
+          (click)="selectMember(member)">
+          
+          <div class="member-avatar-container">
+            <img 
+              *ngIf="member.profileImage"
+              [src]="getProfileImageUrl(member)" 
+              class="member-avatar"
+              alt="{{ member.username }}"
+              (error)="member.profileImage = ''">
+            <div 
+              *ngIf="!member.profileImage" 
+              class="member-avatar default-avatar">
+              {{ getInitials(member.username) }}
+            </div>
+            
+            <!-- Online Status Indicator -->
+            <div class="status-indicator" [class.online]="member.isOnline"></div>
+          </div>
+
+          <div class="member-details">
+            <span class="member-name">{{ member.username }}</span>
+            <div class="member-roles">
+              <span *ngIf="member.hasRole('super_admin')" class="role-badge admin">Admin</span>
+              <span *ngIf="member.hasRole('group_admin')" class="role-badge moderator">Mod</span>
+            </div>
+          </div>
+
+          <div class="member-actions">
+            <button 
+              class="btn btn-sm btn-outline message-btn"
+              (click)="openDirectMessage(member); $event.stopPropagation()"
+              title="Send Message">
+              <i class="fas fa-comment"></i>
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="groupMembers.length === 0" class="empty-state">
+          <p>No members found</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Panel Link -->
+    <div *ngIf="hasRole('super_admin') || hasRole('group_admin')" class="sidebar-section">
+      <button (click)="navigateToAdmin()" class="btn btn-warning btn-block">
+        <i class="fas fa-cog"></i> Admin Panel
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <!-- Update the main content section -->
+<div class="main-content">
+  <app-chat
+    [currentChannel]="currentChannel"
+    [currentGroup]="currentGroup"
+    [isDirectMessageMode]="isDirectMessageMode"
+    [directMessageUser]="directMessageUser"
+    [directMessages]="directMessages"
+    (sendMessage)="onSendMessage($event)"
+    (leaveChannel)="onLeaveChannel()"
+    (exitDirectMessage)="exitDirectMessage()"
+    (channelHistoryLoaded)="onChannelHistoryLoaded($event)">
+  </app-chat>
+</div>
+</div>

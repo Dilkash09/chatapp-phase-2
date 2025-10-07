@@ -1,0 +1,387 @@
+<div class="admin-container">
+  <div class="admin-header">
+    <h2>Admin Dashboard</h2>
+    <div class="header-actions">
+      <button (click)="navigateToDashboard()" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </button>
+      <button (click)="logout()" class="btn btn-danger">
+        <i class="fas fa-sign-out-alt"></i> Logout
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Overview -->
+  <div class="stats-overview">
+    <div class="stat-card">
+      <h3>{{ users.length }}</h3>
+      <p>Total Users</p>
+    </div>
+    <div class="stat-card">
+      <h3>{{ getAdminCount() }}</h3>
+      <p>Admins</p>
+    </div>
+    <div class="stat-card">
+      <h3>{{ groups.length }}</h3>
+      <p>Groups</p>
+    </div>
+    <div class="stat-card">
+      <h3>{{ channels.length }}</h3>
+      <p>Channels</p>
+    </div>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <div class="tabs">
+    <button 
+      [class.active]="activeTab === 'users'" 
+      (click)="selectTab('users')" 
+      class="tab-btn">
+      <i class="fas fa-users"></i> Users
+    </button>
+    <button 
+      [class.active]="activeTab === 'groups'" 
+      (click)="selectTab('groups')" 
+      class="tab-btn">
+      <i class="fas fa-layer-group"></i> Groups
+    </button>
+    <button 
+      [class.active]="activeTab === 'channels'" 
+      (click)="selectTab('channels')" 
+      class="tab-btn">
+      <i class="fas fa-hashtag"></i> Channels
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-state">
+    <i class="fas fa-spinner fa-spin"></i>
+    <span>Loading admin data...</span>
+  </div>
+
+  <!-- Users Tab -->
+  <div *ngIf="activeTab === 'users' && !isLoading" class="tab-content">
+    <div class="tab-header">
+      <h3>User Management</h3>
+      <div class="user-management-actions">
+        <!-- Bulk Actions -->
+        <div class="bulk-actions" *ngIf="getSelectedUsersCount() > 0">
+          <span class="selected-count">{{ getSelectedUsersCount() }} users selected</span>
+          <button 
+            (click)="openBulkAddToGroupModal()"
+            class="btn btn-primary btn-sm">
+            <i class="fas fa-users"></i> Add Selected to Group
+          </button>
+          <button 
+            (click)="clearSelection()"
+            class="btn btn-secondary btn-sm">
+            <i class="fas fa-times"></i> Clear Selection
+          </button>
+        </div>
+        
+        <div class="search-box">
+          <input 
+            type="text" 
+            [(ngModel)]="userSearchTerm" 
+            (input)="filterUsers()"
+            placeholder="Search users...">
+          <i class="fas fa-search"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selection Actions -->
+    <div class="selection-actions" *ngIf="filteredUsers.length > 0">
+      <button 
+        (click)="selectAllUsers()"
+        class="btn btn-outline btn-sm">
+        <i class="fas fa-check-double"></i> Select All
+      </button>
+      <button 
+        (click)="clearSelection()"
+        class="btn btn-outline btn-sm">
+        <i class="fas fa-times"></i> Clear Selection
+      </button>
+    </div>
+
+    <div class="users-grid">
+      <div 
+        *ngFor="let user of filteredUsers" 
+        class="user-card"
+        [class.selected]="isUserSelected(user.primaryId)"
+        [class.current-user]="user.primaryId === currentUser?.primaryId">
+        
+        <!-- Selection Checkbox -->
+        <div class="user-selection" *ngIf="user.primaryId !== currentUser?.primaryId">
+          <input 
+            type="checkbox"
+            [checked]="isUserSelected(user.primaryId)"
+            (change)="toggleUserSelection(user.primaryId)"
+            class="selection-checkbox">
+        </div>
+
+        <div class="user-info">
+          <div class="user-avatar">
+            {{ user.username?.charAt(0)?.toUpperCase() }}
+          </div>
+          <div class="user-details">
+            <h4>
+              {{ user.username }}
+              <span *ngIf="user.primaryId === currentUser?.primaryId" class="current-user-badge">(You)</span>
+            </h4>
+            <p class="user-email">{{ user.email }}</p>
+            <div class="user-roles">
+              <span *ngFor="let role of user.roles" 
+                    class="role-tag"
+                    [class.role-admin]="role === 'super_admin'"
+                    [class.role-moderator]="role === 'group_admin'"
+                    [class.role-user]="role === 'user'">
+                {{ role }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- User Groups -->
+        <div class="user-groups" *ngIf="hasUserGroups(user)">
+          <span class="group-tag" *ngFor="let groupId of getUserGroups(user)">
+            {{ getGroupName(groupId) }}
+            <i class="fas fa-times" 
+               (click)="removeUserFromGroupDirect(groupId, user); $event.stopPropagation()"
+               title="Remove from group"></i>
+          </span>
+        </div>
+
+        <div class="user-groups" *ngIf="!hasUserGroups(user)">
+          <span class="no-groups">No groups</span>
+        </div>
+
+        <!-- User Actions -->
+        <div class="user-actions">
+          <button 
+            (click)="openAddToGroupModal(user); $event.stopPropagation()"
+            class="btn btn-success btn-sm"
+            title="Add to Group">
+            <i class="fas fa-plus"></i> Add to Group
+          </button>
+          
+          <button 
+            *ngIf="!user.hasRole('group_admin') && !user.hasRole('super_admin')"
+            (click)="promoteUser(user); $event.stopPropagation()"
+            class="btn btn-warning btn-sm"
+            title="Promote to Group Admin">
+            <i class="fas fa-star"></i> Promote
+          </button>
+          
+          <button 
+            (click)="viewUserGroups(user); $event.stopPropagation()"
+            class="btn btn-info btn-sm"
+            title="View Groups">
+            <i class="fas fa-eye"></i> Groups
+          </button>
+          
+          <button 
+            *ngIf="user.primaryId !== currentUser?.primaryId"
+            (click)="deleteUser(user); $event.stopPropagation()"
+            class="btn btn-danger btn-sm"
+            title="Delete User">
+            <i class="fas fa-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- No Users Message -->
+    <div *ngIf="filteredUsers.length === 0" class="empty-state">
+      <i class="fas fa-users"></i>
+      <h4>No users found</h4>
+      <p *ngIf="userSearchTerm">Try adjusting your search terms</p>
+    </div>
+  </div>
+
+  <!-- Groups Tab -->
+  <div *ngIf="activeTab === 'groups' && !isLoading" class="tab-content">
+    <div class="tab-header">
+      <h3>Group Management</h3>
+      <button (click)="createNewGroup()" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Create Group
+      </button>
+    </div>
+
+    <div class="groups-grid">
+      <div *ngFor="let group of groups" class="group-card">
+        <div class="group-header">
+          <h4>{{ group.name }}</h4>
+          <span class="member-count">{{ group.members.length }} members</span>
+        </div>
+        
+        <p class="group-description">{{ group.description || 'No description' }}</p>
+        
+        <div class="group-info">
+          <span>Created by: {{ getUsername(group.createdBy) }}</span>
+          <span>Channels: {{ group.channels?.length || 0 }}</span>
+        </div>
+
+        <div class="group-actions">
+          <button 
+            (click)="viewGroupMembers(group)"
+            class="btn btn-info btn-sm">
+            <i class="fas fa-users"></i> Members
+          </button>
+          <button 
+            (click)="editGroup(group)"
+            class="btn btn-warning btn-sm">
+            <i class="fas fa-edit"></i> Edit
+          </button>
+          <button 
+            (click)="deleteGroup(group)"
+            class="btn btn-danger btn-sm">
+            <i class="fas fa-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- No Groups Message -->
+    <div *ngIf="groups.length === 0" class="empty-state">
+      <i class="fas fa-layer-group"></i>
+      <h4>No groups found</h4>
+      <p>Create your first group to get started</p>
+    </div>
+  </div>
+
+  <!-- Channels Tab -->
+  <div *ngIf="activeTab === 'channels' && !isLoading" class="tab-content">
+    <div class="tab-header">
+      <h3>Channel Management</h3>
+      <button (click)="createNewChannel()" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Create Channel
+      </button>
+    </div>
+
+    <div class="channels-grid">
+      <div *ngFor="let channel of channels" class="channel-card">
+        <div class="channel-header">
+          <h4># {{ channel.name }}</h4>
+          <span class="group-badge">{{ channel.groupName }}</span>
+        </div>
+        
+        <p class="channel-description">{{ channel.description || 'No description' }}</p>
+        
+        <div class="channel-info">
+          <span>Created by: {{ getUsername(channel.createdBy) }}</span>
+          <span>Banned users: {{ channel.bannedUsers?.length || 0 }}</span>
+        </div>
+
+        <div class="channel-actions">
+          <button 
+            (click)="editChannel(channel)"
+            class="btn btn-warning btn-sm">
+            <i class="fas fa-edit"></i> Edit
+          </button>
+          <button 
+            (click)="deleteChannel(channel)"
+            class="btn btn-danger btn-sm">
+            <i class="fas fa-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- No Channels Message -->
+    <div *ngIf="channels.length === 0" class="empty-state">
+      <i class="fas fa-hashtag"></i>
+      <h4>No channels found</h4>
+      <p>Create your first channel to get started</p>
+    </div>
+  </div>
+
+  <!-- Group Management Modal -->
+  <div *ngIf="showGroupModal" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ modalTitle }}</h3>
+        <button (click)="closeModal()" class="btn-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- View User Groups -->
+        <div *ngIf="modalAction === 'view' && selectedUser">
+          <h4>{{ selectedUser.username }}'s Groups</h4>
+          <div *ngIf="hasUserGroups(selectedUser)" class="groups-list">
+            <div *ngFor="let groupId of getUserGroups(selectedUser)" class="group-item">
+              <span>{{ getGroupName(groupId) }}</span>
+              <button 
+                (click)="removeUserFromGroupDirect(groupId, selectedUser!)"
+                class="btn btn-danger btn-sm">
+                Remove
+              </button>
+            </div>
+          </div>
+          <div *ngIf="!hasUserGroups(selectedUser)" class="no-groups">
+            User is not in any groups
+          </div>
+        </div>
+
+        <!-- Add/Remove User from Group -->
+        <div *ngIf="(modalAction === 'add' || modalAction === 'remove') && selectedUser">
+          <div class="form-group">
+            <label>Select Group:</label>
+            <select [(ngModel)]="selectedGroupId" class="form-select">
+              <option value="">Choose a group...</option>
+              <option 
+                *ngFor="let group of (modalAction === 'add' ? getAvailableGroupsForUser(selectedUser) : getRemovableGroupsForUser(selectedUser))" 
+                [value]="group.primaryId">
+                {{ group.name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="modal-actions">
+            <button 
+              (click)="confirmGroupAction()"
+              [disabled]="!selectedGroupId"
+              class="btn btn-primary">
+              {{ modalAction === 'add' ? 'Add to Group' : 'Remove from Group' }}
+            </button>
+            <button (click)="closeModal()" class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Bulk Add Users to Group -->
+        <div *ngIf="modalAction === 'addMultiple'">
+          <div class="form-group">
+            <label>Select Group to Add {{ getSelectedUsersCount() }} Users:</label>
+            <select [(ngModel)]="bulkGroupId" class="form-select">
+              <option value="">Choose a group...</option>
+              <option *ngFor="let group of groups" [value]="group.primaryId">
+                {{ group.name }} ({{ group.members.length }} members)
+              </option>
+            </select>
+          </div>
+
+          <div class="selected-users-preview">
+            <h5>Selected Users ({{ getSelectedUsersCount() }}):</h5>
+            <div class="users-list">
+              <span *ngFor="let userId of selectedUsers" class="user-preview">
+                {{ getUsername(userId) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button 
+              (click)="confirmGroupAction()"
+              [disabled]="!bulkGroupId"
+              class="btn btn-primary">
+              <i class="fas fa-users"></i> Add to Group
+            </button>
+            <button (click)="closeModal()" class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

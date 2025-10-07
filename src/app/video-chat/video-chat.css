@@ -1,0 +1,143 @@
+.video-chat-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.peer-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: white;
+  border-radius: 5px;
+}
+
+.connection-status {
+  padding: 5px 10px;
+  border-radius: 15px;
+  background: #dc3545;
+  color: white;
+  display: inline-block;
+  margin-bottom: 15px;
+}
+
+.connection-status.connected {
+  background: #28a745;
+}
+
+.video-interface {
+  position: relative;
+}
+
+.video-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  min-height: 300px;
+}
+
+.remote-video, .local-video {
+  flex: 1;
+  position: relative;
+  background: #000;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.video-element {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-label {
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.local-video {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 200px;
+  height: 150px;
+  z-index: 10;
+  border: 2px solid white;
+}
+
+.audio-call-interface {
+  text-align: center;
+  padding: 40px;
+  background: white;
+  border-radius: 10px;
+  flex: 1;
+}
+
+.audio-icon {
+  color: #28a745;
+  margin-bottom: 20px;
+}
+
+.call-controls-bar {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+  background: white;
+  border-radius: 5px;
+}
+
+.call-controls-bar .btn {
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.incoming-call-alert, .calling-status {
+  text-align: center;
+  padding: 20px;
+}
+
+.btn-group {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.input-group {
+  max-width: 300px;
+  margin: 0 auto 15px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .video-container {
+    flex-direction: column;
+  }
+  
+  .local-video {
+    position: relative;
+    width: 100%;
+    height: 200px;
+    bottom: auto;
+    right: auto;
+  }
+  
+  .remote-video {
+    height: 300px;
+  }
+}
