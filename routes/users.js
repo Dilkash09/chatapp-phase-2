@@ -561,4 +561,138 @@ router.put('/:userId/profile-image', authenticateToken, async (req, res) => {
     }
 });
 
+// Get users by groups
+router.get('/by-groups/:groupIds', authenticateToken, async (req, res) => {
+    try {
+        const { groupIds } = req.params;
+        
+        console.log('=== GET /api/users/by-groups - START ===');
+        console.log('Requested group IDs:', groupIds);
+        console.log('Requesting user:', {
+            id: req.user.id,
+            username: req.user.username,
+            roles: req.user.roles
+        });
+        
+        // Parse group IDs from URL parameter (comma-separated)
+        const groupIdArray = groupIds.split(',').map(id => id.trim()).filter(id => id);
+        
+        // Validate group IDs
+        const validGroupIds = groupIdArray.filter(id => ObjectId.isValid(id));
+        if (validGroupIds.length === 0) {
+            return res.status(400).json({ error: 'No valid group IDs provided' });
+        }
+        
+        console.log('Valid group IDs:', validGroupIds);
+        
+        // Convert to ObjectId
+        const groupObjectIds = validGroupIds.map(id => new ObjectId(id));
+        
+        // Build query based on user role
+        let query = {};
+        
+        // If user is super admin, they can see all users in specified groups
+        if (req.user.roles.includes(ROLES.SUPER_ADMIN)) {
+            query = {
+                groups: { $in: groupObjectIds }
+            };
+        } else {
+            // Regular users can only see users in groups they belong to
+            const userGroups = req.user.groups || [];
+            const userGroupObjectIds = userGroups.map(id => new ObjectId(id));
+            
+            // Check if user has access to all requested groups
+            const hasAccessToAllGroups = groupObjectIds.every(groupId => 
+                userGroupObjectIds.some(userGroupId => userGroupId.equals(groupId))
+            );
+            
+            if (!hasAccessToAllGroups) {
+                return res.status(403).json({ 
+                    error: 'Access denied: You do not have access to all requested groups' 
+                });
+            }
+            
+            query = {
+                groups: { $in: groupObjectIds }
+            };
+        }
+        
+        console.log('Database query:', query);
+        
+        // Get users from database
+        const users = await database.users.find(query).toArray();
+        console.log(`Found ${users.length} users in specified groups`);
+        
+        // Log each user with their data
+        console.log('=== USERS IN REQUESTED GROUPS ===');
+        users.forEach((user, index) => {
+            console.log(`User ${index + 1}:`, {
+                _id: user._id,
+                username: user.username,
+                email: user.email,
+                roles: user.roles,
+                groups: user.groups,
+                profileImage: user.profileImage,
+                isOnline: user.isOnline,
+                lastSeen: user.lastSeen
+            });
+        });
+        console.log('=== END USERS LIST ===');
+        
+        // Remove passwords from response
+        const usersWithoutPasswords = users.map(user => {
+            return {
+                _id: user._id,
+                username: user.username,
+                email: user.email,
+                roles: user.roles,
+                groups: user.groups,
+                profileImage: user.profileImage,
+                peerId: user.peerId,
+                isOnline: user.isOnline,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt
+            };
+        });
+        
+        console.log('=== GET /api/users/by-groups - SUCCESS ===');
+        console.log(`Returning ${usersWithoutPasswords.length} users without passwords`);
+        
+        res.json(usersWithoutPasswords);
+    } catch (error) {
+        console.error('=== GET /api/users/by-groups - ERROR ===');
+        console.error('Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ 
+            error: 'Internal server error',
+            details: error.message 
+        });
+    }
+});
+
+
+// In your users route file
+router.patch(':userId/peerId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { peerId } = req.body;
+    
+    // Update user's peerId in your database
+    const user = await userRepository.findUserById(userId);
+    if (user) {
+      user.setPeerId(peerId);
+      await userRepository.updateUser(user);
+      res.json({ success: true, peerId });
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

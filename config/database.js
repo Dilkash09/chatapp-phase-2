@@ -455,6 +455,8 @@ async updateUser(userId, updateData) {
         { $set: updateData }
     );
 }
+
+
 }
 
 // Export a single instance of the Database class

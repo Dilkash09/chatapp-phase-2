@@ -1,26 +1,18 @@
+const express = require('express');
 const { ExpressPeerServer } = require('peer');
 
-function setupPeerServer(server) {
-  const peerServer = ExpressPeerServer(server, {
-    path: '/peerjs',
-    debug: true,
-    allow_discovery: true,
-    proxied: true
-  });
+const app = express();
 
-  peerServer.on('connection', (client) => {
-    console.log('Peer connected:', client.getId());
-  });
+const server = app.listen(3001, () => {
+  console.log('Server running on port 3001');
+});
 
-  peerServer.on('disconnect', (client) => {
-    console.log('Peer disconnected:', client.getId());
-  });
+// Create PeerJS server
+const peerServer = ExpressPeerServer(server, {
+  path: '/peerjs',
+  allow_discovery: true
+});
 
-  peerServer.on('error', (error) => {
-    console.error('Peer server error:', error);
-  });
+app.use('/peerjs', peerServer);
 
-  return peerServer;
-}
-
-module.exports = { setupPeerServer };
+console.log('PeerJS server running on port 3001');

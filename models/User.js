@@ -7,6 +7,7 @@ class User {
         this.username = username;
         this.password = password;
         this.email = email;
+        this.peerId = null;
         this.roles = roles;
         this.groups = [];
         this.createdAt = new Date();
@@ -48,6 +49,7 @@ class User {
             id: this.id,
             username: this.username,
             email: this.email,
+            peerId: this.peerId,
             roles: this.roles,
             groups: this.groups,
             createdAt: this.createdAt
